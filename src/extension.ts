@@ -104,7 +104,7 @@ export function createContextExtension(options: ContextExtensionOptions = {}): N
         },
       });
 
-      pi.registerCommand("context", {
+      pi.registerCommand("context-cleaning", {
         description: "Control context cleaning: on | off | stats | inspect | probe",
         async handler(args, ctx) {
           const [command = "stats", value] = args.trim().split(/\s+/);

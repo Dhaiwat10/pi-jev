@@ -232,10 +232,10 @@ Modes:
 
 Proposed commands:
 
-- `/context stats`: estimated before/after tokens, selection counts, Jev latency
+- `/context-cleaning stats`: estimated before/after tokens, selection counts, Jev latency
   and usage, cache/fallback counts.
-- `/context inspect`: inspect selected source IDs, excerpts, and policy decisions.
-- `/context on` and `/context off`: toggle cleaning for subsequent calls.
+- `/context-cleaning inspect`: inspect selected source IDs, excerpts, and policy decisions.
+- `/context-cleaning on` and `/context-cleaning off`: toggle cleaning for subsequent calls.
 
 Decision explanations come from recorded scores and deterministic reason codes.
 

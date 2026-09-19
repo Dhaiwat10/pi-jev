@@ -120,13 +120,13 @@ pi
 Then run:
 
 ```text
-/context probe
+/context-cleaning probe
 ```
 
 A successful setup reports the resolved Jev model and request latency. Use:
 
 ```text
-/context stats
+/context-cleaning stats
 ```
 
 to confirm that Jev calls begin succeeding after the session has enough older
@@ -139,8 +139,8 @@ The extension starts with context cleaning enabled.
 Change mode for the current process from inside Pi:
 
 ```text
-/context off
-/context on
+/context-cleaning off
+/context-cleaning on
 ```
 
 Or select the startup mode through the environment:
@@ -153,20 +153,20 @@ Available startup values are `off` and `on`. You can inspect current decisions
 and statistics at any time:
 
 ```text
-/context inspect
-/context stats
-/context off
-/context on
+/context-cleaning inspect
+/context-cleaning stats
+/context-cleaning off
+/context-cleaning on
 ```
 
 Command reference:
 
 ```text
-/context stats
-/context inspect
-/context probe
-/context on
-/context off
+/context-cleaning stats
+/context-cleaning inspect
+/context-cleaning probe
+/context-cleaning on
+/context-cleaning off
 ```
 
 Everything else remains normal Pi: use `pi`, `pi --continue`, `/model`, its
