@@ -20,47 +20,146 @@ limitations, and next evaluation steps.
 
 ## Requirements
 
+- [Pi](https://pi.dev/) with extension-package support
 - Node.js 22.19 or newer
-- A coding-model provider configured for Pi
-- `TYPESAFE_API_KEY` for Jev scoring (optional in `off`/pass-through use)
+- A coding-model provider configured in Pi
+- A [TypeSafe AI](https://typesafe.ai/) API key for Jev scoring
 
-## Install as a Pi extension
+## Installation
 
-This repository is private, so use the SSH source with a GitHub account that has
-access:
+Pi can install the extension globally for your user or locally for one project.
+Pi extensions execute with your full system permissions, so review the source
+before installing it.
+
+### Install globally
+
+The repository is currently private. Collaborators with SSH access can run:
 
 ```sh
 pi install git:git@github.com:Dhaiwat10/pi-jev.git
 ```
 
-For local development, install the checkout directly:
+This adds the package to `~/.pi/agent/settings.json`, clones it into Pi's package
+directory, and installs its runtime dependencies. It then loads automatically in
+every normal `pi` session.
+
+If the repository becomes public, this shorter source also works:
 
 ```sh
-pi install /Users/Apple/code/pi-jev
+pi install git:github.com/Dhaiwat10/pi-jev
 ```
 
-Set the TypeSafe key in the environment that launches Pi. For the local private
-environment file used during development:
+### Install for one project
+
+From the project directory:
+
+```sh
+pi install git:git@github.com:Dhaiwat10/pi-jev.git -l
+```
+
+The `-l` flag writes the package source to `.pi/settings.json`. Teammates can
+then install the declared package after trusting the project.
+
+### Install a local checkout
+
+For extension development:
+
+```sh
+git clone git@github.com:Dhaiwat10/pi-jev.git
+cd pi-jev
+npm install
+pi install "$PWD"
+```
+
+Use `-l` on the final command to install the checkout only for the current
+project.
+
+### Try without installing
+
+Load the package for one Pi process:
+
+```sh
+pi -e git:git@github.com:Dhaiwat10/pi-jev.git
+```
+
+From a local checkout:
+
+```sh
+pi -e /path/to/pi-jev
+```
+
+## Configure TypeSafe
+
+Set `TYPESAFE_API_KEY` in the environment that launches Pi:
+
+```sh
+export TYPESAFE_API_KEY='your-typesafe-key'
+pi
+```
+
+If you keep secrets in an environment file, source it first. Pi does not load
+arbitrary `.env` files automatically:
 
 ```sh
 source ~/.config/pi-jev/env
 pi
 ```
 
-The extension starts in safe `shadow` mode by default. To start directly in
-another mode:
+Do not commit the key to a project repository.
+
+## Verify the installation
+
+Start normal Pi—there is no separate `pi-jev` executable:
+
+```sh
+cd /path/to/your/project
+pi
+```
+
+Then run:
+
+```text
+/context probe
+```
+
+A successful setup reports the resolved Jev model and request latency. Use:
+
+```text
+/context stats
+```
+
+to confirm that Jev calls begin succeeding after the session has enough older
+assistant and tool messages to score.
+
+## Configuration
+
+The extension starts in safe `shadow` mode. It scores context and reports the
+potential reduction while still sending Pi's original messages.
+
+Change mode for the current process from inside Pi:
+
+```text
+/context mode off
+/context mode shadow
+/context mode on
+```
+
+Or select the startup mode through the environment:
 
 ```sh
 PI_JEV_MODE=on pi
 ```
 
-To try the extension for one invocation without installing it:
+Available values are `off`, `shadow`, and `on`. Start with `shadow`, inspect the
+decisions, and switch to `on` once they look appropriate:
 
-```sh
-pi -e /Users/Apple/code/pi-jev/src/extension.ts
+```text
+/context inspect
+/context stats
+/context mode on
 ```
 
-Inside the TUI:
+Command reference:
 
 ```text
 /context stats
@@ -71,6 +170,31 @@ Inside the TUI:
 
 Everything else remains normal Pi: use `pi`, `pi --continue`, `/model`, its
 built-in tools, and its ordinary session management.
+
+Optional debug telemetry can be printed to stderr:
+
+```sh
+PI_JEV_DEBUG=1 pi
+```
+
+It reports selection counts, estimated before/after tokens, and Jev failures;
+it does not print the API key.
+
+## Update or remove
+
+Update installed extension packages:
+
+```sh
+pi update --extensions
+```
+
+Remove the global package:
+
+```sh
+pi remove git:git@github.com:Dhaiwat10/pi-jev.git
+```
+
+For a project-local installation, add `-l` to the remove command.
 
 ## Modes
 
