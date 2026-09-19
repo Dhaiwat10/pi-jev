@@ -4,6 +4,10 @@ This page records early measurements for `pi-jev`. They are a case study, not a
 general benchmark. More repositories, task types, models, and repeated runs are
 needed before drawing broad conclusions.
 
+The recorded shadow run used a pre-release measurement mode. The shipped
+extension now exposes only context cleaning on or off, with cleaning on by
+default.
+
 ## Rudu repository inspection
 
 **Date:** 2026-09-19  

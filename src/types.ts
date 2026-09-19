@@ -1,4 +1,4 @@
-export type ContextMode = "off" | "shadow" | "on";
+export type ContextMode = "off" | "on";
 
 export type CandidateKind = "assistant" | "tool-result";
 

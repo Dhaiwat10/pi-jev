@@ -18,7 +18,11 @@ export interface NamedContextExtension {
 
 function modeFromEnvironment(): ContextMode {
   const mode = process.env.PI_JEV_MODE;
-  return mode === "off" || mode === "on" || mode === "shadow" ? mode : "shadow";
+  return mode === "off" ? "off" : "on";
+}
+
+function statusLabel(mode: ContextMode, detail?: string): string {
+  return `Context cleaning: ${mode === "on" ? "ON" : "OFF"}${detail ? ` · ${detail}` : ""}`;
 }
 
 function emptyStats(mode: ContextMode): ContextStats {
@@ -70,7 +74,7 @@ export function createContextExtension(options: ContextExtensionOptions = {}): N
     factory: (pi: ExtensionAPI) => {
       const index = new ContextIndex();
       const scorer = new JevScorer();
-      let mode: ContextMode = options.mode ?? "shadow";
+      let mode: ContextMode = options.mode ?? "on";
       let stats = emptyStats(mode);
       let lastDecisions: CandidateDecision[] = [];
       const debug = process.env.PI_JEV_DEBUG === "1";
@@ -101,13 +105,22 @@ export function createContextExtension(options: ContextExtensionOptions = {}): N
       });
 
       pi.registerCommand("context", {
-        description: "Inspect pi-jev: stats | inspect | probe | mode off|shadow|on",
+        description: "Control context cleaning: on | off | stats | inspect | probe",
         async handler(args, ctx) {
           const [command = "stats", value] = args.trim().split(/\s+/);
-          if (command === "mode" && (value === "off" || value === "shadow" || value === "on")) {
-            mode = value;
+          const requestedMode = command === "on" || command === "off"
+            ? command
+            : command === "mode" && (value === "on" || value === "off")
+              ? value
+              : undefined;
+          if (requestedMode) {
+            mode = requestedMode;
             stats.mode = mode;
-            ctx.ui.notify(`pi-jev context mode: ${mode}`, "info");
+            ctx.ui.setStatus(
+              "pi-jev",
+              statusLabel(mode, mode === "on" && !scorer.available ? "Jev key required" : undefined),
+            );
+            ctx.ui.notify(statusLabel(mode), "info");
             return;
           }
           if (command === "inspect") {
@@ -138,7 +151,10 @@ export function createContextExtension(options: ContextExtensionOptions = {}): N
       });
 
       pi.on("session_start", (_event, ctx) => {
-        ctx.ui.setStatus("pi-jev", `jev:${mode}`);
+        ctx.ui.setStatus(
+          "pi-jev",
+          statusLabel(mode, mode === "on" && !scorer.available ? "Jev key required" : undefined),
+        );
       });
 
       pi.on("context", async (event, ctx) => {
@@ -161,12 +177,13 @@ export function createContextExtension(options: ContextExtensionOptions = {}): N
             stats.jevErrors += 1;
             stats.lastJevError = describeJevError(error);
             if (debug) process.stderr.write(`[pi-jev] Jev error: ${stats.lastJevError}\n`);
-            ctx.ui.setStatus("pi-jev", `jev:${mode}:fallback`);
+            ctx.ui.setStatus("pi-jev", statusLabel(mode, "Jev unavailable; using safe fallback"));
           }
         }
 
-        lastDecisions = candidates.map((candidate) =>
-          decideCandidate(candidate, event.messages.length, scorer.getCached(candidate.id, task)),
+        lastDecisions = candidates.map((candidate) => mode === "off"
+          ? { candidateId: candidate.id, action: "keep", reason: "context-cleaning-off" }
+          : decideCandidate(candidate, event.messages.length, scorer.getCached(candidate.id, task))
         );
         const compiled = compileContext(event.messages, candidates, lastDecisions);
 
@@ -180,7 +197,20 @@ export function createContextExtension(options: ContextExtensionOptions = {}): N
           beforeTokens: compiled.beforeTokens,
           afterTokens: compiled.afterTokens,
         };
-        ctx.ui.setStatus("pi-jev", `jev:${mode} ${compiled.beforeTokens}->${compiled.afterTokens}`);
+        const reduction = compiled.beforeTokens > 0
+          ? Math.round((1 - compiled.afterTokens / compiled.beforeTokens) * 100)
+          : 0;
+        ctx.ui.setStatus(
+          "pi-jev",
+          statusLabel(
+            mode,
+            mode === "on" && !scorer.available
+              ? "Jev key required"
+              : mode === "on" && reduction > 0
+                ? `${reduction}% smaller`
+                : undefined,
+          ),
+        );
         if (debug) {
           process.stderr.write(
             `[pi-jev] mode=${mode} candidates=${candidates.length} keep/excerpt/archive=${stats.kept}/${stats.excerpted}/${stats.archived} tokens=${compiled.beforeTokens}->${compiled.afterTokens} Jev successes/errors=${stats.jevCalls}/${stats.jevErrors}\n`,

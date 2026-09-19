@@ -4,8 +4,8 @@ A Pi extension that uses Jev to maintain a smaller, cleaner working context.
 Pi keeps the durable session; the extension derives a model-facing view and
 keeps omitted material available through `recall_context`.
 
-This repository currently contains an early vertical slice. Shadow mode is the
-default while the scoring policy is evaluated.
+Context cleaning is enabled by default after installation. It can be turned on
+or off at any time from inside Pi.
 
 ## Early results
 
@@ -13,7 +13,8 @@ In an initial read-only repository-inspection task, the final observed working
 context was reduced by **45.1% in shadow mode** and **42.0% in active mode**.
 The active run remained coherent and identified the same concrete maintenance
 risk as the unfiltered shadow run. These are approximate token estimates from a
-single case study, not general quality or cost claims.
+single case study, not general quality or cost claims. Shadow was a pre-release
+measurement mode and is not part of the current on/off interface.
 
 See [docs/benchmarks.md](docs/benchmarks.md) for the setup, measurements,
 limitations, and next evaluation steps.
@@ -133,15 +134,13 @@ assistant and tool messages to score.
 
 ## Configuration
 
-The extension starts in safe `shadow` mode. It scores context and reports the
-potential reduction while still sending Pi's original messages.
+The extension starts with context cleaning enabled.
 
 Change mode for the current process from inside Pi:
 
 ```text
-/context mode off
-/context mode shadow
-/context mode on
+/context off
+/context on
 ```
 
 Or select the startup mode through the environment:
@@ -150,13 +149,14 @@ Or select the startup mode through the environment:
 PI_JEV_MODE=on pi
 ```
 
-Available values are `off`, `shadow`, and `on`. Start with `shadow`, inspect the
-decisions, and switch to `on` once they look appropriate:
+Available startup values are `off` and `on`. You can inspect current decisions
+and statistics at any time:
 
 ```text
 /context inspect
 /context stats
-/context mode on
+/context off
+/context on
 ```
 
 Command reference:
@@ -165,7 +165,8 @@ Command reference:
 /context stats
 /context inspect
 /context probe
-/context mode off|shadow|on
+/context on
+/context off
 ```
 
 Everything else remains normal Pi: use `pi`, `pi --continue`, `/model`, its
@@ -199,10 +200,9 @@ For a project-local installation, add `-l` to the remove command.
 ## Modes
 
 - `off`: no Jev scoring and no model-facing filtering.
-- `shadow`: score and report decisions while sending Pi's original context.
-- `on`: apply the current extractive policy. Older plain assistant messages may
-  be omitted and older tool-result bodies may be excerpted or replaced by a
-  recall marker. Tool-call/result protocol pairs remain intact.
+- `on` (default): apply the current extractive policy. Older plain assistant
+  messages may be omitted and older tool-result bodies may be excerpted or
+  replaced by a recall marker. Tool-call/result protocol pairs remain intact.
 
 If Jev is unavailable or a request fails, candidates without cached scores are
 kept conservatively.

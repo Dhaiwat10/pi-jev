@@ -222,21 +222,20 @@ Install the package and use the normal Pi CLI:
 
 ```sh
 pi install git:git@github.com:Dhaiwat10/pi-jev.git
-PI_JEV_MODE=shadow pi
+PI_JEV_MODE=on pi
 ```
 
 Modes:
 
 - `off`: baseline Pi behavior.
-- `shadow`: compute and log selections while running the baseline context path.
-- `on`: send the selected context to the coding model.
+- `on` (default): send the selected context to the coding model.
 
 Proposed commands:
 
 - `/context stats`: estimated before/after tokens, selection counts, Jev latency
   and usage, cache/fallback counts.
 - `/context inspect`: inspect selected source IDs, excerpts, and policy decisions.
-- `/context mode off|shadow|on`: change mode for subsequent calls.
+- `/context on` and `/context off`: toggle cleaning for subsequent calls.
 
 Decision explanations come from recorded scores and deterministic reason codes.
 
@@ -259,7 +258,7 @@ references, recall, and a compiler driven by fixture selection decisions.
 **Done when:** a selected view fits its budget, preserves protocol validity, and
 can recover an omitted excerpt exactly. This establishes the machinery Jev drives.
 
-### 3. Integrate Jev in shadow mode
+### 3. Integrate and evaluate Jev
 
 Implement the typed scoring client, small-batch question construction, caching,
 deadlines, and decision logging. Requires `TYPESAFE_API_KEY` and a configured Pi
