@@ -185,7 +185,7 @@ it does not print the API key.
 Update installed extension packages:
 
 ```sh
-pi update --extensions
+pi update
 ```
 
 Remove the global package:
