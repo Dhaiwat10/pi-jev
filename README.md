@@ -7,6 +7,17 @@ and keeps omitted material available through `recall_context`.
 This repository currently contains an early vertical slice. Shadow mode is the
 default while the scoring policy is evaluated.
 
+## Early results
+
+In an initial read-only repository-inspection task, the final observed working
+context was reduced by **45.1% in shadow mode** and **42.0% in active mode**.
+The active run remained coherent and identified the same concrete maintenance
+risk as the unfiltered shadow run. These are approximate token estimates from a
+single case study, not general quality or cost claims.
+
+See [docs/benchmarks.md](docs/benchmarks.md) for the setup, measurements,
+limitations, and next evaluation steps.
+
 ## Requirements
 
 - Node.js 22.19 or newer
