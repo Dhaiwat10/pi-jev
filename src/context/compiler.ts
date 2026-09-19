@@ -1,5 +1,5 @@
 import type { CandidateDecision, ContextCandidate } from "../types.js";
-import { contentToText, excerptText, estimateTokens } from "./text.js";
+import { contentToText, excerptText, excerptToolOutput, estimateTokens } from "./text.js";
 
 type ContentPart = Record<string, unknown>;
 type MessageLike = {
@@ -12,6 +12,21 @@ export interface CompileResult<T> {
   messages: T[];
   beforeTokens: number;
   afterTokens: number;
+}
+
+export function replacementFor(candidate: ContextCandidate, action: CandidateDecision["action"]): string {
+  if (action === "keep") return candidate.text;
+  if (action === "excerpt") {
+    return candidate.kind === "tool-result"
+      ? excerptToolOutput(candidate.text, candidate.id)
+      : excerptText(candidate.text);
+  }
+  return `[Archived tool result ${candidate.id}; use recall_context with this id to retrieve it.]`;
+}
+
+export function estimateContextSavings(candidate: ContextCandidate, decision: CandidateDecision): number {
+  if (decision.action === "keep") return 0;
+  return Math.max(0, candidate.tokenEstimate - estimateTokens(replacementFor(candidate, decision.action)));
 }
 
 function hasToolCall(message: MessageLike): boolean {
@@ -63,9 +78,7 @@ export function compileContext<T extends MessageLike>(
     }
 
     if (message.role === "toolResult") {
-      const replacement = decision.action === "excerpt"
-        ? excerptText(candidate.text)
-        : `[Archived tool result ${candidate.id}; use recall_context with this id to retrieve it.]`;
+      const replacement = replacementFor(candidate, decision.action);
       compiled.push({ ...message, content: replaceTextContent(message.content, replacement) } as T);
       return;
     }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { compileContext } from "../src/context/compiler.js";
 import { ContextIndex } from "../src/context/index.js";
 import { decideCandidate } from "../src/context/policy.js";
+import { excerptToolOutput } from "../src/context/text.js";
 import type { CandidateScore } from "../src/types.js";
 
 const usage = {
@@ -80,6 +81,7 @@ describe("selection policy", () => {
       candidateId: candidate.id,
       usefulness: 1,
       usefulnessConfidence: 0.8,
+      fullResultNeeded: 0.9,
       unresolved: 0.9,
       failedApproach: 0.1,
       scoredAt: Date.now(),
@@ -97,11 +99,57 @@ describe("selection policy", () => {
       candidateId: candidate.id,
       usefulness: 0.2,
       usefulnessConfidence: 0.9,
+      fullResultNeeded: 0.1,
       unresolved: 0.1,
       failedApproach: 0.1,
       scoredAt: Date.now(),
       model: "jev-test",
     };
-    expect(decideCandidate(candidate, 20, score).action).toBe("archive");
+    expect(decideCandidate(candidate, 20, score, {
+      recentMessageCount: 6,
+      excerptTokenThreshold: 500,
+      archiveTokenThreshold: 1,
+      fullResultKeepThreshold: 0.68,
+    }).action).toBe("archive");
+  });
+
+  it("excerpts a large useful result when its full body is unnecessary", () => {
+    const index = new ContextIndex();
+    const candidate = index.rebuild([{
+      role: "toolResult",
+      toolCallId: "1",
+      toolName: "bash",
+      content: [{ type: "text", text: "progress\n".repeat(700) + "not ok 1 - preserves failure" }],
+    }])[0]!;
+    const score: CandidateScore = {
+      candidateId: candidate.id,
+      usefulness: 2.4,
+      usefulnessConfidence: 0.9,
+      fullResultNeeded: 0.2,
+      unresolved: 0.8,
+      failedApproach: 0.1,
+      scoredAt: Date.now(),
+      model: "jev-test",
+    };
+    expect(decideCandidate(candidate, 20, score).action).toBe("excerpt");
+  });
+});
+
+describe("tool output excerpts", () => {
+  it("removes repetitive lines while preserving exact failure evidence", () => {
+    const text = [
+      "TAP version 13",
+      ...Array.from({ length: 100 }, (_, index) => `fixture ${index + 1}/100 ok`),
+      "not ok 1 - rejects malformed input",
+      "Error: expected rejection",
+      "# tests 1",
+      "# fail 1",
+    ].join("\n");
+    const excerpt = excerptToolOutput(text, "candidate123", 600);
+    expect(excerpt).toContain("TAP version 13");
+    expect(excerpt).toContain("not ok 1 - rejects malformed input");
+    expect(excerpt).toContain("Error: expected rejection");
+    expect(excerpt).toContain("archived as candidate123");
+    expect(excerpt.length).toBeLessThan(text.length);
   });
 });

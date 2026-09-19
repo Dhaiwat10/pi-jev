@@ -16,6 +16,8 @@ export interface CandidateScore {
   candidateId: string;
   usefulness: number;
   usefulnessConfidence: number;
+  /** Probability that the complete tool output is needed verbatim. */
+  fullResultNeeded: number;
   unresolved: number;
   failedApproach: number;
   scoredAt: number;
@@ -44,5 +46,7 @@ export interface ContextStats {
   jevCalls: number;
   jevErrors: number;
   jevLatencyMs: number;
+  checkpoints: number;
+  pending: number;
   lastJevError?: string;
 }

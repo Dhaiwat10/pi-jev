@@ -10,8 +10,14 @@ const resultsRoot = join(root, ".benchmark-results");
 const runId = new Date().toISOString().replaceAll(":", "-").replaceAll(".", "-");
 const runRoot = join(resultsRoot, runId);
 const model = process.env.BENCHMARK_MODEL ?? "openai-codex/gpt-5.6-sol";
-const projects = ["ledger", "planner"];
-const modes = ["off", "on"];
+const projects = (process.env.BENCHMARK_PROJECTS ?? "ledger,planner").split(",").map((project) => project.trim()).filter(Boolean);
+if (projects.some((project) => !["ledger", "planner"].includes(project))) {
+  throw new Error("BENCHMARK_PROJECTS must contain only 'ledger' and 'planner'");
+}
+const modes = (process.env.BENCHMARK_MODES ?? "off,on").split(",").map((mode) => mode.trim()).filter(Boolean);
+if (modes.some((mode) => mode !== "off" && mode !== "on")) {
+  throw new Error("BENCHMARK_MODES must contain only 'off' and 'on'");
+}
 
 if (!process.env.TYPESAFE_API_KEY) {
   throw new Error("TYPESAFE_API_KEY must be set before running the benchmark");
@@ -73,7 +79,7 @@ function sumUsage(events) {
 
 function parseContextTelemetry(stderr) {
   const rows = [];
-  const pattern = /\[pi-jev\] mode=(on|off) candidates=(\d+) keep\/excerpt\/archive=(\d+)\/(\d+)\/(\d+) tokens=(\d+)->(\d+) Jev successes\/errors=(\d+)\/(\d+)/g;
+  const pattern = /\[pi-jev\] mode=(on|off) candidates=(\d+) keep\/excerpt\/archive=(\d+)\/(\d+)\/(\d+) tokens=(\d+)->(\d+) Jev successes\/errors=(\d+)\/(\d+)(?: checkpoints\/pending=(\d+)\/(\d+))?/g;
   for (const match of stderr.matchAll(pattern)) {
     const before = Number(match[6]);
     const after = Number(match[7]);
@@ -88,6 +94,8 @@ function parseContextTelemetry(stderr) {
       reductionPercent: before > 0 ? Number((((before - after) / before) * 100).toFixed(1)) : 0,
       jevSuccesses: Number(match[8]),
       jevErrors: Number(match[9]),
+      checkpoints: Number(match[10] ?? 0),
+      pending: Number(match[11] ?? 0),
     });
   }
   return rows;
@@ -120,6 +128,8 @@ async function benchmark(project, mode) {
 
   const agent = await run("pi", [
     "--no-session",
+    "--no-extensions",
+    "--extension", join(root, "src", "extension.ts"),
     "--mode", "json",
     "--model", model,
     "--tools", "read,bash,edit,write,grep,find,ls",

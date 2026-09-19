@@ -117,6 +117,10 @@ export class JevScorer {
             noul(`Does candidate ${candidate.id} document a problem that remains unresolved in the supplied state?`),
           ],
           [
+            `full_${candidate.id}`,
+            noul(`Does the complete output of candidate ${candidate.id} need to remain verbatim for the next coding steps? Answer no when only its errors, final summary, or a few diagnostic lines matter and the rest is repetitive progress, successful checks, or stale output.`),
+          ],
+          [
             `failed_${candidate.id}`,
             noul(`Does candidate ${candidate.id} record a failed approach that would help avoid repeating work?`),
           ],
@@ -136,15 +140,18 @@ export class JevScorer {
       for (const candidate of batch) {
         const usefulness = response.answers[`usefulness_${candidate.id}`];
         const unresolved = response.answers[`unresolved_${candidate.id}`];
+        const fullResultNeeded = response.answers[`full_${candidate.id}`];
         const failed = response.answers[`failed_${candidate.id}`];
         if (!usefulness || usefulness.type !== "score") continue;
         if (!unresolved || unresolved.type !== "noul") continue;
+        if (!fullResultNeeded || fullResultNeeded.type !== "noul") continue;
         if (!failed || failed.type !== "noul") continue;
 
         this.cache.set(this.cacheKey(candidate.id, task), {
           candidateId: candidate.id,
           usefulness: usefulness.score,
           usefulnessConfidence: usefulness.confidence,
+          fullResultNeeded: fullResultNeeded.noul,
           unresolved: unresolved.noul,
           failedApproach: failed.noul,
           scoredAt: Date.now(),

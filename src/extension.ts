@@ -1,11 +1,13 @@
 import type { ContextEvent, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { compileContext } from "./context/compiler.js";
+import { compileContext, estimateContextSavings } from "./context/compiler.js";
 import { ContextIndex } from "./context/index.js";
 import { decideCandidate, DEFAULT_POLICY } from "./context/policy.js";
 import { contentToText } from "./context/text.js";
 import { describeJevError, JevScorer } from "./jev.js";
-import type { CandidateDecision, ContextMode, ContextStats } from "./types.js";
+import type { CandidateDecision, CandidateScore, ContextCandidate, ContextMode, ContextStats } from "./types.js";
+
+const CHECKPOINT_SAVINGS_TOKENS = 256;
 
 export interface ContextExtensionOptions {
   mode?: ContextMode;
@@ -39,6 +41,8 @@ function emptyStats(mode: ContextMode): ContextStats {
     jevCalls: 0,
     jevErrors: 0,
     jevLatencyMs: 0,
+    checkpoints: 0,
+    pending: 0,
   };
 }
 
@@ -63,6 +67,7 @@ function formatStats(stats: ContextStats, jevAvailable: boolean): string {
     `candidates=${stats.candidates}`,
     `keep/excerpt/archive=${stats.kept}/${stats.excerpted}/${stats.archived}`,
     `tokens=${stats.beforeTokens}->${stats.afterTokens} (${reduction}% reduction)`,
+    `checkpoints/pending=${stats.checkpoints}/${stats.pending}`,
     `Jev attempts/successes/errors/latency=${stats.jevAttempts}/${stats.jevCalls}/${stats.jevErrors}/${stats.jevLatencyMs}ms`,
     ...(stats.lastJevError ? [`last Jev error=${stats.lastJevError}`] : []),
   ].join("\n");
@@ -77,6 +82,9 @@ export function createContextExtension(options: ContextExtensionOptions = {}): N
       let mode: ContextMode = options.mode ?? "on";
       let stats = emptyStats(mode);
       let lastDecisions: CandidateDecision[] = [];
+      const scoresByCandidate = new Map<string, CandidateScore>();
+      const committedDecisions = new Map<string, CandidateDecision>();
+      const pendingDecisions = new Map<string, CandidateDecision>();
       const debug = process.env.PI_JEV_DEBUG === "1";
 
       pi.registerTool({
@@ -127,7 +135,7 @@ export function createContextExtension(options: ContextExtensionOptions = {}): N
             const lines = lastDecisions.map((decision) => {
               const candidate = index.get(decision.candidateId);
               const scoreText = decision.score
-                ? ` usefulness=${decision.score.usefulness.toFixed(2)} unresolved=${decision.score.unresolved.toFixed(2)} failed=${decision.score.failedApproach.toFixed(2)}`
+                ? ` usefulness=${decision.score.usefulness.toFixed(2)} full=${decision.score.fullResultNeeded.toFixed(2)} unresolved=${decision.score.unresolved.toFixed(2)} failed=${decision.score.failedApproach.toFixed(2)}`
                 : "";
               return `${decision.action.padEnd(7)} ${decision.candidateId} ${candidate?.kind ?? "?"} ${decision.reason}${scoreText}`;
             });
@@ -151,6 +159,11 @@ export function createContextExtension(options: ContextExtensionOptions = {}): N
       });
 
       pi.on("session_start", (_event, ctx) => {
+        scoresByCandidate.clear();
+        committedDecisions.clear();
+        pendingDecisions.clear();
+        stats = emptyStats(mode);
+        lastDecisions = [];
         ctx.ui.setStatus(
           "pi-jev",
           statusLabel(mode, mode === "on" && !scorer.available ? "Jev key required" : undefined),
@@ -162,17 +175,35 @@ export function createContextExtension(options: ContextExtensionOptions = {}): N
         const candidates = index.rebuild(event.messages);
         const task = latestUserTask(event.messages);
         const eligible = candidates.filter(
-          (candidate) => candidate.messageIndex < event.messages.length - DEFAULT_POLICY.recentMessageCount,
+          (candidate) => candidate.kind === "tool-result"
+            && candidate.messageIndex < event.messages.length - DEFAULT_POLICY.recentMessageCount
+            && candidate.tokenEstimate >= DEFAULT_POLICY.archiveTokenThreshold,
         );
+
+        const currentIds = new Set(candidates.map(({ id }) => id));
+        for (const id of pendingDecisions.keys()) {
+          if (!currentIds.has(id)) pendingDecisions.delete(id);
+        }
 
         if (mode !== "off" && scorer.available) {
           try {
-            const unscored = eligible.filter((candidate) => !scorer.getCached(candidate.id, task));
-            if (unscored.length > 0) stats.jevAttempts += 1;
-            const scored = await scorer.scoreCandidates(unscored.slice(-8), task, ctx.signal);
-            stats.jevCalls += scored.calls;
-            stats.jevLatencyMs += scored.latencyMs;
-            if (scored.calls > 0) delete stats.lastJevError;
+            const unscored = eligible.filter((candidate) =>
+              !scoresByCandidate.has(candidate.id)
+              && !committedDecisions.has(candidate.id)
+              && !pendingDecisions.has(candidate.id),
+            );
+            const queuedTokens = unscored.reduce((sum, candidate) => sum + candidate.tokenEstimate, 0);
+            const shouldScore = queuedTokens >= CHECKPOINT_SAVINGS_TOKENS
+              || unscored.some((candidate) => candidate.tokenEstimate >= DEFAULT_POLICY.excerptTokenThreshold);
+            if (shouldScore) {
+              const batch = unscored.slice(0, 8);
+              if (batch.length > 0) stats.jevAttempts += 1;
+              const scored = await scorer.scoreCandidates(batch, task, ctx.signal);
+              scored.scores.forEach((score) => scoresByCandidate.set(score.candidateId, score));
+              stats.jevCalls += scored.calls;
+              stats.jevLatencyMs += scored.latencyMs;
+              if (scored.calls > 0) delete stats.lastJevError;
+            }
           } catch (error) {
             stats.jevErrors += 1;
             stats.lastJevError = describeJevError(error);
@@ -181,10 +212,43 @@ export function createContextExtension(options: ContextExtensionOptions = {}): N
           }
         }
 
-        lastDecisions = candidates.map((candidate) => mode === "off"
-          ? { candidateId: candidate.id, action: "keep", reason: "context-cleaning-off" }
-          : decideCandidate(candidate, event.messages.length, scorer.getCached(candidate.id, task))
-        );
+        if (mode === "on") {
+          for (const candidate of eligible) {
+            if (committedDecisions.has(candidate.id) || pendingDecisions.has(candidate.id)) continue;
+            const score = scoresByCandidate.get(candidate.id);
+            if (!score) continue;
+            const decision = decideCandidate(candidate, event.messages.length, score);
+            if (decision.action === "keep") committedDecisions.set(candidate.id, decision);
+            else pendingDecisions.set(candidate.id, decision);
+          }
+
+          const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+          const projectedContextSavings = [...pendingDecisions.values()].reduce((sum, decision) => {
+            const candidate = candidateById.get(decision.candidateId);
+            return sum + (candidate ? estimateContextSavings(candidate, decision) : 0);
+          }, 0);
+          if (projectedContextSavings >= CHECKPOINT_SAVINGS_TOKENS) {
+            for (const [id, decision] of pendingDecisions) committedDecisions.set(id, decision);
+            pendingDecisions.clear();
+            stats.checkpoints += 1;
+          }
+        }
+
+        const pendingKeep = (candidate: ContextCandidate): CandidateDecision => {
+          const score = scoresByCandidate.get(candidate.id);
+          return {
+            candidateId: candidate.id,
+            action: "keep",
+            reason: pendingDecisions.has(candidate.id) ? "checkpoint-pending" : "unscored-conservative",
+            ...(score ? { score } : {}),
+          };
+        };
+        lastDecisions = candidates.map((candidate) => {
+          if (mode === "off") {
+            return { candidateId: candidate.id, action: "keep", reason: "context-cleaning-off" };
+          }
+          return committedDecisions.get(candidate.id) ?? pendingKeep(candidate);
+        });
         const compiled = compileContext(event.messages, candidates, lastDecisions);
 
         stats = {
@@ -196,6 +260,7 @@ export function createContextExtension(options: ContextExtensionOptions = {}): N
           archived: lastDecisions.filter(({ action }) => action === "archive").length,
           beforeTokens: compiled.beforeTokens,
           afterTokens: compiled.afterTokens,
+          pending: pendingDecisions.size,
         };
         const reduction = compiled.beforeTokens > 0
           ? Math.round((1 - compiled.afterTokens / compiled.beforeTokens) * 100)
@@ -213,7 +278,7 @@ export function createContextExtension(options: ContextExtensionOptions = {}): N
         );
         if (debug) {
           process.stderr.write(
-            `[pi-jev] mode=${mode} candidates=${candidates.length} keep/excerpt/archive=${stats.kept}/${stats.excerpted}/${stats.archived} tokens=${compiled.beforeTokens}->${compiled.afterTokens} Jev successes/errors=${stats.jevCalls}/${stats.jevErrors}\n`,
+            `[pi-jev] mode=${mode} candidates=${candidates.length} keep/excerpt/archive=${stats.kept}/${stats.excerpted}/${stats.archived} tokens=${compiled.beforeTokens}->${compiled.afterTokens} Jev successes/errors=${stats.jevCalls}/${stats.jevErrors} checkpoints/pending=${stats.checkpoints}/${stats.pending}\n`,
           );
         }
 

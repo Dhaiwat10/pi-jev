@@ -66,6 +66,7 @@ describe("Jev scorer transport", () => {
       expect(result.scores[0]).toMatchObject({
         candidateId: candidate.id,
         usefulness: 0.2,
+        fullResultNeeded: 0.1,
         unresolved: 0.1,
         failedApproach: 0.1,
         model: "jev-mock",

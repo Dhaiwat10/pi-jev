@@ -1,6 +1,6 @@
 {
   "name": "pi-jev",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "A Pi extension for Jev-guided context selection",
   "type": "module",
   "keywords": [

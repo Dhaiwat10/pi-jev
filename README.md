@@ -45,9 +45,12 @@ it.
 ## Results
 
 In a reproducible write/test benchmark, both cleaning modes passed all tasks.
-Cleaning used **11.6% fewer provider tokens**, but disrupted prompt-cache reuse
-and increased coding-model cost by **47.5%** before Jev cost. The current policy
-is therefore experimental and does not yet support a cost-efficiency claim.
+Cleaning made the final model-facing context **29.6–34.1% smaller** by extracting
+exact diagnostic ranges from noisy tool output. It used 18 Jev requests with no
+errors, compared with 73 under the previous whole-message policy.
+
+Prompt-cache effects still increased coding-model cost by 12.9% before Jev cost;
+the optimization target is context cleanliness rather than API cost.
 
 See [docs/benchmarks.md](docs/benchmarks.md) for methodology, individual runs,
 limitations, and raw results.
