@@ -1,4 +1,4 @@
-import type { ContextEvent, ExtensionAPI, InlineExtension } from "@earendil-works/pi-coding-agent";
+import type { ContextEvent, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { compileContext } from "./context/compiler.js";
 import { ContextIndex } from "./context/index.js";
@@ -9,6 +9,16 @@ import type { CandidateDecision, ContextMode, ContextStats } from "./types.js";
 
 export interface ContextExtensionOptions {
   mode?: ContextMode;
+}
+
+export interface NamedContextExtension {
+  name: string;
+  factory: (pi: ExtensionAPI) => void;
+}
+
+function modeFromEnvironment(): ContextMode {
+  const mode = process.env.PI_JEV_MODE;
+  return mode === "off" || mode === "on" || mode === "shadow" ? mode : "shadow";
 }
 
 function emptyStats(mode: ContextMode): ContextStats {
@@ -54,7 +64,7 @@ function formatStats(stats: ContextStats, jevAvailable: boolean): string {
   ].join("\n");
 }
 
-export function createContextExtension(options: ContextExtensionOptions = {}): InlineExtension {
+export function createContextExtension(options: ContextExtensionOptions = {}): NamedContextExtension {
   return {
     name: "pi-jev-context",
     factory: (pi: ExtensionAPI) => {
@@ -181,4 +191,9 @@ export function createContextExtension(options: ContextExtensionOptions = {}): I
       });
     },
   };
+}
+
+/** Pi package entry point. */
+export default function piJevExtension(pi: ExtensionAPI): void {
+  createContextExtension({ mode: modeFromEnvironment() }).factory(pi);
 }

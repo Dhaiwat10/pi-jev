@@ -1,8 +1,8 @@
 # pi-jev
 
-A small coding-agent harness that runs Pi with a Jev-guided working-context
-layer. Pi keeps the durable session; `pi-jev` derives a smaller model-facing view
-and keeps omitted material available through `recall_context`.
+A Pi extension that uses Jev to maintain a smaller, cleaner working context.
+Pi keeps the durable session; the extension derives a model-facing view and
+keeps omitted material available through `recall_context`.
 
 This repository currently contains an early vertical slice. Shadow mode is the
 default while the scoring policy is evaluated.
@@ -24,30 +24,40 @@ limitations, and next evaluation steps.
 - A coding-model provider configured for Pi
 - `TYPESAFE_API_KEY` for Jev scoring (optional in `off`/pass-through use)
 
-## Setup
+## Install as a Pi extension
+
+This repository is private, so use the SSH source with a GitHub account that has
+access:
 
 ```sh
-npm install
-npm run build
-npm link
+pi install git:git@github.com:Dhaiwat10/pi-jev.git
 ```
 
-Run in a project:
+For local development, install the checkout directly:
 
 ```sh
-pi-jev --context-mode shadow /path/to/project
+pi install /Users/Apple/code/pi-jev
 ```
 
-Resume the most recent session:
+Set the TypeSafe key in the environment that launches Pi. For the local private
+environment file used during development:
 
 ```sh
-pi-jev --continue --context-mode shadow /path/to/project
+source ~/.config/pi-jev/env
+pi
 ```
 
-For automation or a single prompt:
+The extension starts in safe `shadow` mode by default. To start directly in
+another mode:
 
 ```sh
-pi-jev --print --prompt "Inspect the project without modifying files" /path/to/project
+PI_JEV_MODE=on pi
+```
+
+To try the extension for one invocation without installing it:
+
+```sh
+pi -e /Users/Apple/code/pi-jev/src/extension.ts
 ```
 
 Inside the TUI:
@@ -59,7 +69,8 @@ Inside the TUI:
 /context mode off|shadow|on
 ```
 
-Use `/model` to select any model configured through Pi.
+Everything else remains normal Pi: use `pi`, `pi --continue`, `/model`, its
+built-in tools, and its ordinary session management.
 
 ## Modes
 

@@ -12,8 +12,8 @@ superseded file snapshots, and completed detours.
 
 ## Agreed direction
 
-- **Interface:** a `pi-jev` CLI using Pi's existing terminal UI, tools, and sessions.
-- **Integration:** a small TypeScript SDK launcher loading a context-manager extension.
+- **Interface:** a Pi package loaded by the normal `pi` command.
+- **Integration:** a TypeScript extension using Pi's context and lifecycle hooks.
 - **Distillation:** exact excerpts selected with Jev; the harness assembles the text.
 - **Coding model:** configurable through Pi's provider/model support.
 - **Initial storage:** Pi session files plus a local, rebuildable context index and
@@ -49,7 +49,7 @@ Jev model version for reproducible evaluation.
 ```text
 User
   |
-pi-jev CLI -> Pi UI / session / agent loop
+normal Pi CLI -> Pi UI / session / agent loop
                          |
                          | before each model call
                          v
@@ -218,10 +218,11 @@ increase billed cost when it invalidates an effective provider cache.
 
 ## User-facing controls
 
-Proposed CLI:
+Install the package and use the normal Pi CLI:
 
 ```sh
-pi-jev --model <provider/model> --context-mode shadow
+pi install git:git@github.com:Dhaiwat10/pi-jev.git
+PI_JEV_MODE=shadow pi
 ```
 
 Modes:
@@ -243,8 +244,8 @@ Decision explanations come from recorded scores and deterministic reason codes.
 
 ### 1. Prove the Pi integration
 
-Build the minimal SDK launcher and load a pass-through context extension. Reuse
-Pi's interactive UI, tools, model configuration, and persistent sessions.
+Build a pass-through context extension and package it for Pi. Reuse Pi's normal
+CLI, interactive UI, tools, model configuration, and persistent sessions.
 
 **Done when:** `pi-jev` can perform a small read/edit/test task; the hook fires
 before every model invocation; cancellation and resume work; outgoing messages
@@ -315,8 +316,7 @@ tradeoff. Jev should show value over the deterministic baseline.
 
 ```text
 src/
-  cli.ts                  # Pi SDK / interactive-mode launcher
-  extension.ts            # Pi lifecycle hooks and commands
+  extension.ts            # Pi package entry point, lifecycle hooks, and commands
   context/
     index.ts              # Source IDs, exchange groups, spans, persistence
     policy.ts             # Protected context and selection rules
