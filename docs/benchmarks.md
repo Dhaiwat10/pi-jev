@@ -27,6 +27,7 @@ repository changes.
 | Shadow | Final observed | 43,140 | 23,701 | 19,439 | **45.1%** |
 | Active | Final observed | 59,040 | 34,247 | 24,793 | **42.0%** |
 | Active | Highest observed reduction | 35,607 | 14,777 | 20,830 | **58.5%** |
+| Active installed extension | Final observed | 56,906 | 35,868 | 21,038 | **37.0%** |
 
 The values are `pi-jev`'s fast token estimates (approximately four characters
 per token), not provider-reported billing tokens. “Baseline-equivalent” means
@@ -46,10 +47,11 @@ Reduction is calculated as:
 |---|---:|---:|
 | Shadow | 10 | 0 |
 | Active | 14 | 0 |
+| Active installed extension | 11 | 0 |
 
-A separate minimal live probe completed in **432 ms**. We did not capture a
-latency distribution or total Jev latency for the full runs, so this number
-must not be interpreted as average per-turn overhead.
+Two separate minimal live probes completed in **331 ms** and **432 ms**. We did
+not capture a latency distribution or total Jev latency for the full runs, so
+these numbers must not be interpreted as average per-turn overhead.
 
 ### Outcome check
 
@@ -66,6 +68,11 @@ This is encouraging evidence that active filtering preserved the information
 needed for this task. It is not a correctness score: there was one run per mode,
 no blinded grading, and no test suite or patch output because the task was
 read-only.
+
+The final installed-package verification used normal Pi with the globally
+installed extension, inspected more than twenty frontend and Rust files, and
+produced a coherent cache/refresh architecture analysis. It also left the
+repository unchanged.
 
 ## What the numbers support
 
