@@ -16,9 +16,9 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "check": "tsc -p tsconfig.json --noEmit && vitest run test",
+    "check": "tsc -p tsconfig.json --noEmit && vitest run --dir test",
     "dev": "pi -e ./src/extension.ts",
-    "test": "vitest run test"
+    "test": "vitest run --dir test"
   },
   "engines": {
     "node": ">=22.19.0"

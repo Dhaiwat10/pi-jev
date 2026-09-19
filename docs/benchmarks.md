@@ -1,99 +1,120 @@
-# Preliminary benchmark
+# Benchmarks
 
-This page records early measurements for `pi-jev`. They are a case study, not a
-general benchmark. More repositories, task types, models, and repeated runs are
-needed before drawing broad conclusions.
+## Write/test benchmark
 
-The recorded shadow run used a pre-release measurement mode. The shipped
-extension now exposes only context cleaning on or off, with cleaning on by
-default.
+This is the primary benchmark for `pi-jev`. It uses fresh coding projects,
+requires file edits, runs tests repeatedly, and verifies the resulting code
+outside the agent loop.
 
-## Rudu repository inspection
+- **Date:** 2026-09-19
+- **Coding model:** `openai-codex/gpt-5.6-sol`
+- **Jev model:** `jev-1.13.0`
+- **Sample:** 2 projects × 2 repetitions × context cleaning off/on = 8 runs
 
-**Date:** 2026-09-19  
-**Repository:** Rudu, a React/Tauri application  
-**Coding model:** `openai-codex/gpt-5.6-sol`  
-**Jev model:** `jev-1.13.0`
+### Projects
 
-The agent was asked to inspect at least eight frontend and Rust files, explain
-the pull-request review-comment flow, describe module boundaries, and identify
-a maintenance risk. It was restricted to read/search/list tools and made no
-repository changes.
+- **Ledger importer:** repair CSV parsing, exact decimal conversion, validation,
+  monthly summaries, and deterministic expense selection. The fixture starts
+  with 11 of 14 tests failing.
+- **Dependency planner:** repair graph validation, cycle reporting,
+  dependency-safe batching, priority ordering, and immutability. The fixture
+  starts with 12 of 14 tests failing.
 
-### Context reduction
+Each run starts from a fresh copy and receives the same three prompts: implement
+all requirements, fix every remaining test failure, then perform a final
+requirements and edge-case review. Tests contain noisy preflight output to
+produce realistic tool-result history.
 
-| Run | Checkpoint | Baseline-equivalent context | Selected context | Removed | Reduction |
-|---|---:|---:|---:|---:|---:|
-| Shadow | Final observed | 43,140 | 23,701 | 19,439 | **45.1%** |
-| Active | Final observed | 59,040 | 34,247 | 24,793 | **42.0%** |
-| Active | Highest observed reduction | 35,607 | 14,777 | 20,830 | **58.5%** |
-| Active installed extension | Final observed | 56,906 | 35,868 | 21,038 | **37.0%** |
+The runner checks that:
 
-The values are `pi-jev`'s fast token estimates (approximately four characters
-per token), not provider-reported billing tokens. “Baseline-equivalent” means
-the messages before `pi-jev` filtering at that checkpoint. In shadow mode those
-unfiltered messages were what Pi actually sent, making it a same-transcript
-counterfactual for selection. It is not a separately repeated vanilla-Pi run.
+- The independent final `npm test` succeeds.
+- The agent did not modify tests.
+- The required `REPORT.md` was written.
+- Provider usage, cost, tool calls, wall time, and extension telemetry are saved.
 
-Reduction is calculated as:
+Run it with:
 
-```text
-(baseline context - selected context) / baseline context
+```sh
+export TYPESAFE_API_KEY='...'
+node benchmarks/run.mjs
 ```
 
-### Jev reliability
+Generated workspaces and full logs are ignored by Git. The normalized raw
+results are committed at
+[`benchmarks/results/write-benchmark-2026-09-19.json`](../benchmarks/results/write-benchmark-2026-09-19.json).
 
-| Run | Successful Jev requests | Jev errors |
-|---|---:|---:|
-| Shadow | 10 | 0 |
-| Active | 14 | 0 |
-| Active installed extension | 11 | 0 |
+### Aggregate results
 
-Two separate minimal live probes completed in **331 ms** and **432 ms**. We did
-not capture a latency distribution or total Jev latency for the full runs, so
-these numbers must not be interpreted as average per-turn overhead.
+| Metric | Cleaning off | Cleaning on | Change |
+|---|---:|---:|---:|
+| Tasks passing | 4/4 | 4/4 | Equal |
+| Tests unchanged | 4/4 | 4/4 | Equal |
+| Provider total tokens | 488,363 | 431,518 | **−11.6%** |
+| Uncached input tokens | 108,228 | 249,936 | **+130.9%** |
+| Cache-read tokens | 361,472 | 162,944 | **−54.9%** |
+| Output tokens | 18,663 | 18,638 | −0.1% |
+| Coding-model cost | $1.2818 | $1.8903 | **+47.5%** |
+| Wall time | 535.2 s | 525.7 s | −1.8% |
+| Tool calls | 90 | 82 | −8.9% |
+| Assistant turns | 58 | 56 | −3.4% |
+| Jev requests | 0 | 73 | +73 |
+| Jev errors | 0 | 0 | Equal |
 
-### Outcome check
+The coding-model cost excludes Jev, so total system cost increased by more than
+the table's 47.5%.
 
-Both the shadow and active runs:
+### Individual runs
 
-- Produced coherent descriptions of the React → Tauri → GitHub comment flow.
-- Correctly described the intended frontend, command, service, transport, and
-  model boundaries.
-- Independently identified the same concrete maintenance risk: review threads
-  and comments are requested with `first: 100` but without pagination.
-- Left the Rudu working tree unchanged from its pre-test state.
+| Project | Repeat | Cleaning | Tests | Provider tokens | Cost | Time | Final estimated context reduction |
+|---|---:|---|---:|---:|---:|---:|---:|
+| Ledger | 1 | Off | Pass | 142,979 | $0.3437 | 135.6 s | 0% |
+| Ledger | 1 | On | Pass | 119,409 | $0.6143 | 165.9 s | 1.1% |
+| Planner | 1 | Off | Pass | 99,516 | $0.3068 | 113.8 s | 0% |
+| Planner | 1 | On | Pass | 90,099 | $0.3745 | 105.4 s | 0.0% |
+| Ledger | 2 | Off | Pass | 143,709 | $0.3906 | 157.9 s | 0% |
+| Ledger | 2 | On | Pass | 90,910 | $0.3878 | 112.1 s | 0.4% |
+| Planner | 2 | Off | Pass | 102,159 | $0.2407 | 128.0 s | 0% |
+| Planner | 2 | On | Pass | 131,100 | $0.5138 | 142.2 s | 0.9% |
 
-This is encouraging evidence that active filtering preserved the information
-needed for this task. It is not a correctness score: there was one run per mode,
-no blinded grading, and no test suite or patch output because the task was
-read-only.
+### Finding
 
-The final installed-package verification used normal Pi with the globally
-installed extension, inspected more than twenty frontend and Rust files, and
-produced a coherent cache/refresh architecture analysis. It also left the
-repository unchanged.
+Cleaning preserved task quality in this small sample and coincided with fewer
+total provider tokens and tool calls. However, it did not materially reduce the
+compiled context on these workloads: final reduction was 0–1.1%, with a maximum
+observed checkpoint of 1.3%.
 
-## What the numbers support
+The current implementation changes older prompt content frequently. That breaks
+provider prefix-cache reuse: cache reads fell 54.9% while expensive uncached
+input rose 130.9%. As a result, coding-model cost increased 47.5%, before paying
+for Jev's 73 requests.
 
-For this repository-inspection task, `pi-jev` reduced the final observed
-model-facing working context by **42–45%** while retaining enough context to
-produce a comparable analysis. At one intermediate active checkpoint it removed
-**58.5%**.
+**Conclusion:** this benchmark does not support a cost-efficiency claim for the
+current policy on short-to-medium write/test sessions. The next version should
+avoid pruning below a context threshold, batch changes at stable checkpoints,
+and target large tool outputs rather than frequently rewriting short messages.
+It should then be rerun on these same fixtures.
 
-The likely benefit over unfiltered Pi is lower attention spent on old tool
-output and potentially fewer uncached input tokens. The current evidence does
-**not** establish:
+### Limitations
 
-- A 42–45% reduction in API cost. Provider prompt caching can change billing.
-- Faster end-to-end execution. Jev adds network calls and latency.
-- Equal coding quality across implementation or debugging tasks.
-- Better performance than Pi's built-in compaction on very long sessions.
+- Two repetitions per mode are enough to expose the cache effect, not to make a
+  strong claim about coding quality.
+- Agent trajectories are stochastic and cannot be perfectly paired.
+- Each repetition ran cleaning off before cleaning on; execution order was not
+  randomized.
+- The fixtures are small Node.js projects, not large production repositories.
+- Jev usage and cost are not included in the provider cost totals.
+- A discarded pilot run used two inconsistent test expectations. Those fixtures
+  were corrected before the two reported repetitions; pilot numbers are not
+  included.
 
-## Next benchmark
+## Earlier read-only case study
 
-Run baseline Pi, deterministic recency filtering, and Jev filtering on repeated
-read, edit, debugging, and test-repair tasks. Capture provider-reported input,
-cache-read, cache-write, output, cost, wall-clock time, checks passed, repeated
-tool calls, and final patch quality. Those measurements can turn this case study
-into a defensible comparison.
+An earlier Rudu repository-inspection task showed estimated final context
+reductions of 37–45%, with coherent answers and no Jev errors. One intermediate
+checkpoint reached 58.5%.
+
+That result demonstrated that the extension can remove substantial old read
+output in a long inspection session, but it used approximate context estimates,
+one run per mode, and no code edits or correctness tests. It should not be used
+as the headline benchmark, and it did not measure the prompt-cache cost exposed
+by the write/test benchmark above.

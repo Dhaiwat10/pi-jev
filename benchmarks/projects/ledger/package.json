@@ -1,0 +1,8 @@
+{
+  "name": "ledger-benchmark",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node scripts/noisy-check.mjs && node --test"
+  }
+}

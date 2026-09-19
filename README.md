@@ -44,10 +44,13 @@ it.
 
 ## Results
 
-In preliminary read-only repository inspections, active cleaning reduced the
-final observed working context by **37–42%** while preserving a coherent analysis.
-These are approximate token estimates from a small case study, not general cost
-or quality claims. See [docs/benchmarks.md](docs/benchmarks.md) for details.
+In a reproducible write/test benchmark, both cleaning modes passed all tasks.
+Cleaning used **11.6% fewer provider tokens**, but disrupted prompt-cache reuse
+and increased coding-model cost by **47.5%** before Jev cost. The current policy
+is therefore experimental and does not yet support a cost-efficiency claim.
+
+See [docs/benchmarks.md](docs/benchmarks.md) for methodology, individual runs,
+limitations, and raw results.
 
 ## Update or remove
 
